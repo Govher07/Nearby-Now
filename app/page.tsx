@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import EventCard from "../components/EventCard";
+import {getDistance, isHappeningNow} from "../utils/eventUtils";
 
 type EventItem = {
   id: number;
@@ -18,34 +19,34 @@ const events: EventItem[] = [
     id: 1,
     title: "Live Jazz Night",
     place: "Blue Cafe",
-    time: "8:00 PM",
+    time: new Date(Date.now() + 20 * 60 * 1000).toISOString(),
     category: "Music",
-    latitude: 47.61,
+    latitude: 46.61,
     longitude: -122.30,
   },
   {
     id: 2,
     title: "Soccer Watch Party",
     place: "Downtown Bar",
-    time: "7:30 PM",
+    time: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
     category: "Sports",
-    latitude: 48.89,
-    longitude: - 122.78,
+    latitude: 46.89,
+    longitude: -122.78,
   },
   {
     id: 3,
     title: "Open Mic Night",
     place: "River Lounge",
-    time: "9:00 PM",
+    time: new Date(Date.now() + 40 * 60 * 1000).toISOString(),
     category: "Social",
-    latitude: 47.98,
+    latitude: 46.98,
     longitude: -122.12,
   },
   {
     id: 4,
     title: "Street Food Pop-Up",
     place: "Central Square",
-    time: "6:00 PM",
+    time: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
     category: "Food",
     latitude: 45.89,
     longitude: -122.34,
@@ -54,7 +55,7 @@ const events: EventItem[] = [
     id: 5,
     title: "Drop-in party",
     place: "Juicivana",
-    time: "8:00 PM",
+    time: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
     category: "Popular",
     latitude: 46.78,
     longitude: -122.52,
@@ -65,6 +66,7 @@ const categories = ["All", "Popular", "Music", "Sports", "Social", "Food"];
 
 export default function HomePage() {
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const [hasMounted, setHasMounted] = useState(false);
 
   const [location, setLocation] = useState<{
     latitude: number;
@@ -72,6 +74,7 @@ export default function HomePage() {
   } | null>(null);
 
   useEffect(() => {
+    setHasMounted(true);
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setLocation({
@@ -86,38 +89,37 @@ export default function HomePage() {
   }, []);
 
   const filteredEvents = useMemo(() => {
-    if (selectedCategory === "All") return events;
-    return events.filter((event) => event.category === selectedCategory);
-  }, [selectedCategory]);
+    const filtered =
+      selectedCategory === "All"
+        ? events
+        : events.filter((event) => event.category === selectedCategory);
 
-  function getDistance(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number
-) {
-  const R = 6371;
+    if (!location) return filtered;
 
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    return [...filtered].sort((a, b) => {
+      const distA = getDistance(
+        location.latitude,
+        location.longitude,
+        a.latitude,
+        a.longitude
+      );
 
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
+      const distB = getDistance(
+        location.latitude,
+        location.longitude,
+        b.latitude,
+        b.longitude
+      );
 
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-  return R * c;
-}
+      return distA - distB;
+    });
+  }, [selectedCategory, location]);
 
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-8 text-white">
       <div className="mx-auto max-w-3xl">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold mb-2">Nearby Now</h1>
+          <h1 className="mb-2 text-3xl font-bold">Nearby Now</h1>
           <h2 className="text-slate-300">Fun is a click away</h2>
 
           {location && (
@@ -128,12 +130,12 @@ export default function HomePage() {
           )}
         </div>
 
-        <div className="mb-6 flex gap-3 flex-wrap">
+        <div className="mb-6 flex flex-wrap gap-3">
           {categories.map((category) => (
             <button
               key={category}
               onClick={() => setSelectedCategory(category)}
-              className={`px-4 py-2 rounded-full ${
+              className={`rounded-full px-4 py-2 ${
                 selectedCategory === category
                   ? "bg-white text-black"
                   : "bg-slate-800"
@@ -146,22 +148,25 @@ export default function HomePage() {
 
         <div className="space-y-4">
           {filteredEvents.map((event) => {
-          const distance =
-          location &&
-          getDistance(
-          location.latitude,
-          location.longitude,
-          event.latitude,
-          event.longitude
-          );
+            const distance =
+              location &&
+              getDistance(
+                location.latitude,
+                location.longitude,
+                event.latitude,
+                event.longitude
+              );
 
-          return (
-          <EventCard
-          key={event.id}
-          event={event}
-          distance={distance}
-          />
-          );
+              const isLive = hasMounted ? isHappeningNow(event.time) : false;
+
+            return (
+              <EventCard
+                key={event.id}
+                event={event}
+                distance={distance}
+                isLive={isLive}
+              />
+            );
           })}
         </div>
       </div>
